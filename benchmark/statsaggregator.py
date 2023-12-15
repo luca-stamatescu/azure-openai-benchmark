@@ -1,11 +1,13 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
 
+import os
 import threading
 import datetime
 import time
 import json
 import numpy as np
+import pandas as pd
 from .oairequester import RequestStats
 
 class _Samples:
@@ -62,7 +64,11 @@ class _StatsAggregator(threading.Thread):
       self.dump_duration = dump_duration
       self.json_output = json_output
       self.window_duration = window_duration
-
+      self.df = pd.DataFrame(columns=['timestamp', 'rpm', 'requests', 'failures', 'throttled', 'tpm', 'ttft_avg', 'ttft_95th', 'tbt_avg', 'tbt_95th', 'e2e_avg', 'e2e_95th', 'util_avg', 'util_95th'])
+      self.filename = os.path.join(os.path.dirname(os.path.abspath(__file__)), f"stats/stats_{datetime.datetime.now().strftime('%Y%m%d%H%M%S')}.csv")
+      dir_path = os.path.dirname(self.filename)
+      if not os.path.exists(dir_path):
+         os.makedirs(dir_path)
       super(_StatsAggregator, self).__init__(*args, **kwargs)
 
    def run(self):
@@ -155,7 +161,11 @@ class _StatsAggregator(threading.Thread):
             }
             print(json.dumps(j), flush=True)
          else:
-            print(f"{timestamp} rpm: {rpm:<5} requests: {self.requests_count:<5} failures: {self.failed_count:<4} throttled: {self.throttled_count:<4} tpm: {tokens_per_minute:<6} ttft_avg: {ttft_avg:<6} ttft_95th: {ttft_95th:<6} tbt_avg: {tbt_avg:<6} tbt_95th: {tbt_95th:<6} e2e_avg: {e2e_latency_avg:<6} e2e_95th: {e2e_latency_95th:<6} util_avg: {util_avg:<6} util_95th: {util_95th:<6}", flush=True)
+            print(f"{timestamp} run_seconds: {run_seconds:<5} rpm: {rpm:<5} requests: {self.requests_count:<5} failures: {self.failed_count:<4} throttled: {self.throttled_count:<4} tpm: {tokens_per_minute:<6} ttft_avg: {ttft_avg:<6} ttft_95th: {ttft_95th:<6} tbt_avg: {tbt_avg:<6} tbt_95th: {tbt_95th:<6} e2e_avg: {e2e_latency_avg:<6} e2e_95th: {e2e_latency_95th:<6} util_avg: {util_avg:<6} util_95th: {util_95th:<6}", flush=True)
+            row = {'run_seconds': run_seconds,'timestamp': timestamp, 'rpm': rpm, 'requests': self.requests_count, 'failures': self.failed_count, 'throttled': self.throttled_count, 'tpm': tokens_per_minute, 'ttft_avg': ttft_avg, 'ttft_95th': ttft_95th, 'tbt_avg': tbt_avg, 'tbt_95th': tbt_95th, 'e2e_avg': e2e_latency_avg, 'e2e_95th': e2e_latency_95th, 'util_avg': util_avg, 'util_95th': util_95th}
+            self.df.loc[len(self.df)] = row
+            self.df.to_csv(self.filename, index=False)
+
 
    def _slide_window(self):
       with self.lock:
