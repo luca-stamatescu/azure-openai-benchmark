@@ -1,33 +1,39 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
 
-import time
-import os
-import aiohttp
-import wonderwords
-import math
 import logging
-from typing import Iterable, Iterator
-from .statsaggregator import _StatsAggregator
-from .oairequester import OAIRequester
-from .asynchttpexecuter import AsyncHTTPExecuter
-from .ratelimiting import RateLimiter, NoRateLimiter
-from .oaitokenizer import num_tokens_from_messages
-
+import os
 import sys
+from typing import Iterable, Iterator
+
+import aiohttp
+
+from .asynchttpexecuter import AsyncHTTPExecuter
+from .messagegeneration import GENERATOR_NAME_TO_CLASS
+from .oairequester import OAIRequester
+from .oaitokenizer import num_tokens_from_messages
+from .ratelimiting import NoRateLimiter, RateLimiter
+from .statsaggregator import _StatsAggregator
+
 
 class _RequestBuilder:
    """
    Wrapper iterator class to build request payloads.
    """
-   def __init__(self, model:str, context_tokens:int,
-                max_tokens:None, 
-                completions:None, 
-                frequence_penalty:None, 
-                presence_penalty:None, 
-                temperature:None, 
-                top_p:None):
+   def __init__(
+         self, 
+         model:str, 
+         context_tokens:int,
+         max_tokens:None, 
+         completions:None, 
+         frequence_penalty:None, 
+         presence_penalty:None, 
+         temperature:None, 
+         top_p:None,
+         context_generation_class: str = "auto",
+      ):
       self.model = model
+      self.context_generation_class = GENERATOR_NAME_TO_CLASS[context_generation_class]()
       self.context_tokens = context_tokens
       self.max_tokens = max_tokens
       self.completions = completions
@@ -36,14 +42,14 @@ class _RequestBuilder:
       self.temperature = temperature
       self.top_p = top_p
 
-      logging.info("warming up prompt cache")
-      _generate_messages(self.model, self.context_tokens, self.max_tokens)
+      logging.info("Warming up prompt cache")
+      self.context_generation_class(model=model, context_tokens=context_tokens, max_tokens=max_tokens)
 
    def __iter__(self) -> Iterator[dict]:
       return self
 
    def __next__(self) -> (dict, int):
-      messages, messages_tokens = _generate_messages(self.model, self.context_tokens, self.max_tokens)
+      messages, messages_tokens = self.context_generation_class(self.model, self.context_tokens, self.max_tokens)
       body = {"messages":messages}
       if self.max_tokens is not None:
          body["max_tokens"] = self.max_tokens
@@ -149,43 +155,6 @@ def _run_load(request_builder: Iterable[dict],
 
    logging.info("finished load test")
 
-CACHED_PROMPT=""
-CACHED_MESSAGES_TOKENS=0
-def _generate_messages(model:str, tokens:int, max_tokens:int=None) -> ([dict], int):
-   """
-   Generate `messages` array based on tokens and max_tokens.
-   Returns Tuple of messages array and actual context token count.
-   """
-   global CACHED_PROMPT
-   global CACHED_MESSAGES_TOKENS
-   try:
-      r = wonderwords.RandomWord()
-      messages = [{"role":"user", "content":str(time.time()) + " "}]
-      if max_tokens is not None:
-         messages.append({"role":"user", "content":str(time.time()) + f" write an essay in at least {max_tokens*3} words"})
-      messages_tokens = 0
-
-      if len(CACHED_PROMPT) > 0:
-         messages[0]["content"] += CACHED_PROMPT
-         messages_tokens = CACHED_MESSAGES_TOKENS
-      else:
-         prompt = ""
-         base_prompt = messages[0]["content"]
-         while True:
-            messages_tokens = num_tokens_from_messages(messages, model)
-            remaining_tokens = tokens - messages_tokens
-            if remaining_tokens <= 0:
-               break
-            prompt += " ".join(r.random_words(amount=math.ceil(remaining_tokens/4))) + " "
-            messages[0]["content"] = base_prompt + prompt
-
-         CACHED_PROMPT = prompt
-         CACHED_MESSAGES_TOKENS = messages_tokens
-
-   except Exception as e:
-      print (e)
-
-   return (messages, messages_tokens)
 
 def _validate(args):
     if len(args.api_version) == 0:
@@ -207,6 +176,8 @@ def _validate(args):
           raise ValueError("context-tokens must be specified with shape=custom")
     if args.max_tokens is not None and args.max_tokens < 0:
        raise ValueError("max-tokens must be > 0")
+    if args.context_generation_class not in GENERATOR_NAME_TO_CLASS.keys():
+      raise ValueError(f"Invalid context-generation-class. Must be one of: {list(GENERATOR_NAME_TO_CLASS.keys())}")
     if args.completions < 1:
        raise ValueError("completions must be > 0")
     if args.frequency_penalty is not None and (args.frequency_penalty < -2 or args.frequency_penalty > 2):

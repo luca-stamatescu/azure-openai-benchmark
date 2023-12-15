@@ -4,8 +4,10 @@
 import argparse
 import logging
 
-from .tokenizecmd import tokenize
 from .loadcmd import load
+from .messagegeneration import GENERATOR_NAME_TO_CLASS
+from .tokenizecmd import tokenize
+
 
 def main():
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)-8s %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
@@ -24,6 +26,7 @@ def main():
     load_parser.add_argument("-s", "--shape-profile", type=str, default="balanced", help="Shape profile of requests.", choices=["balanced", "context", "generation", "custom"])
     load_parser.add_argument("-p", "--context-tokens", type=int, help="Number of context tokens to use when --shape-profile=custom.")
     load_parser.add_argument("-m", "--max-tokens", type=int, help="Number of requested max_tokens when --shape-profile=custom. Defaults to unset.")
+    load_parser.add_argument("--context-generation-class", type=str, help="Python class to be used for generation of context tokens. See benchmark.messagegeneration for more info", choices=list(GENERATOR_NAME_TO_CLASS.keys()), default="auto")
     load_parser.add_argument("-i", "--completions", type=int, default=1, help="Number of completion for each request.")
     load_parser.add_argument("--frequency-penalty", type=float, help="Request frequency_penalty.")
     load_parser.add_argument("--presence-penalty", type=float, help="Request frequency_penalty.")
