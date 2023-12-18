@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
 
+import json
 import logging
 import os
 import sys
@@ -70,6 +71,29 @@ def load(args):
    except ValueError as e:
        print(f"invalid argument(s): {e}")
        sys.exit(1)
+
+   run_args = {
+      "api_base_endpoint": args.api_base_endpoint[0],
+      "deployment": args.deployment,
+      "clients": args.clients,
+      "requests": args.requests,
+      "duration": args.duration,
+      "rate": args.rate,
+      "aggregation_window": args.aggregation_window,
+      "shape_profile": args.shape_profile,
+      "context_tokens": args.context_tokens,
+      "max_tokens": args.max_tokens,
+      "completions": args.completions,
+      "retry": args.retry,
+      "api_version": args.api_version,
+      "frequency_penalty": args.frequency_penalty if "frequency_penalty" in args else None,
+      "presence_penalty": args.presence_penalty if "presence_penalty" in args else None,
+      "temperature": args.temperature,
+      "top_p": args.top_p,
+      "output_format": args.output_format,
+   }
+   converted = json.dumps(run_args)
+   logging.info("Load test args: " + converted)
 
    api_key = os.getenv(args.api_key_env)
    url = args.api_base_endpoint[0] + "/openai/deployments/" + args.deployment + "/chat/completions"
