@@ -11,7 +11,6 @@ import aiohttp
 from .asynchttpexecuter import AsyncHTTPExecuter
 from .messagegeneration import GENERATOR_NAME_TO_CLASS
 from .oairequester import OAIRequester
-from .oaitokenizer import num_tokens_from_messages
 from .ratelimiting import NoRateLimiter, RateLimiter
 from .statsaggregator import _StatsAggregator
 
@@ -135,6 +134,7 @@ def _run_load(request_builder: Iterable[dict],
       nonlocal aggregator
       nonlocal requester
       request_body, messages_tokens = request_builder.__next__()
+      aggregator.record_new_request()
       stats = await requester.call(session, request_body)
       stats.context_tokens = messages_tokens
       try:
