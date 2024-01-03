@@ -26,7 +26,6 @@ def combine_logs_to_csv(
     log_dir = Path(log_dir)
     log_files = log_dir.rglob("*.log") if load_recursive else log_dir.glob("*.log")
     log_files = sorted(log_files)
-    num_files = len(log_files)
     # Extract run info from each log file
     run_summaries = [extract_run_info_from_log_path(log_file) for log_file in log_files]
     run_summaries = [summary for summary in run_summaries if isinstance(summary, dict)]
@@ -62,7 +61,7 @@ def extract_run_info_from_log_path(log_file: str) -> Optional[dict]:
         logging.error(f"Could not extract run args from log file {log_file} - missing run info (it might have been generated with a previous code version).")
         return None
     run_args["early-terminated"] = early_terminated
-    run_args["filename"] = Path(log_file).name
+    run_args["filename"] = log_file
     # Extract last line of valid stats from log if available
     if last_logged_stats:
         last_logged_stats = flatten_dict(json.loads(last_logged_stats))
